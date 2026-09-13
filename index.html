@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#09090b" />
+  <meta name="description" content="Rundenrausch – das schnelle Partyspiel für gemeinsame Abende." />
+  <title>Rundenrausch</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <section id="setup" class="screen setup-screen active" aria-labelledby="setup-title">
+      <header class="brand"><span class="brand-mark">R</span><span>RUNDENRAUSCH</span><span class="beta">BETA</span></header>
+      <div class="setup-copy">
+        <p class="eyebrow">HEUTE WIRD'S INTERESSANT</p>
+        <h1 id="setup-title">Wer spielt mit?</h1>
+        <p class="lede">Namen rein, Stimmung wählen, loslegen.</p>
+      </div>
+
+      <form id="setup-form">
+        <div id="player-list" class="player-list" aria-label="Spieler"></div>
+        <button class="add-player" id="add-player" type="button"><span>＋</span> Person hinzufügen</button>
+
+        <fieldset class="mood-picker">
+          <legend>Wie soll der Abend werden?</legend>
+          <label><input type="radio" name="mood" value="locker" checked><span><b>Locker</b><small>Lachen & kennenlernen</small></span></label>
+          <label><input type="radio" name="mood" value="frech"><span><b>Frech</b><small>Persönlich & direkt</small></span></label>
+          <label><input type="radio" name="mood" value="chaos"><span><b>Chaos</b><small>Regeln & Duelle</small></span></label>
+        </fieldset>
+
+        <button class="primary" type="submit">Spiel starten <span>→</span></button>
+        <p id="setup-error" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="game" class="screen game-screen" aria-live="polite">
+      <header class="game-header">
+        <button id="quit" class="icon-button" aria-label="Spiel beenden">×</button>
+        <div class="round"><span id="round-label">RUNDE 1</span><i><em id="progress"></em></i></div>
+        <button id="sound" class="icon-button" aria-label="Ton an- oder ausschalten">♪</button>
+      </header>
+
+      <div class="turn"><span>AM ZUG</span><strong id="current-player">Dominik</strong></div>
+      <article id="card" class="game-card" tabindex="0">
+        <div class="card-top"><span id="card-icon">✦</span><span id="card-type">VOTE</span></div>
+        <p id="card-text">Wer würde am ehesten spontan auswandern?</p>
+        <div id="card-extra" class="card-extra"></div>
+        <small id="card-hint">Zeigt gleichzeitig auf eine Person.</small>
+      </article>
+
+      <div class="penalty"><span>VERLIERER</span><strong id="penalty">1 SIP</strong></div>
+      <button id="next-card" class="primary">Nächste Karte <span>→</span></button>
+      <button id="stats" class="text-button">Spielstand ansehen</button>
+    </section>
+
+    <dialog id="stats-dialog">
+      <div class="dialog-head"><div><p class="eyebrow">ZWISCHENSTAND</p><h2>Der Abend bisher</h2></div><button id="close-stats" class="icon-button" aria-label="Schließen">×</button></div>
+      <div id="stats-list" class="stats-list"></div>
+      <button id="resume" class="primary">Weiterspielen</button>
+    </dialog>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
