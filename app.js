@@ -38,7 +38,7 @@ const meta={
   confession:{label:'EHRLICH',icon:'?',color:'#bd5b00'},mission:{label:'MISSION',icon:'◉',color:'#6d28d9'},
   chaos:{label:'CHAOS',icon:'✦',color:'#7c3aed'},custom:{label:'EURE KARTE',icon:'★',color:'#b4236c'}
 };
-const state={players:[],mood:'locker',scoring:'sips',max:30,index:0,journey:[],scores:{},vibration:true,activeRule:'',timerStart:0,timerTick:null};
+const state={players:[],mode:'classic',mood:'locker',scoring:'sips',max:30,index:0,journey:[],scores:{},vibration:true,activeRule:'',timerStart:0,timerTick:null,arcadeIndex:0,arcadeMax:10,arcadeOrder:[],arcadeWins:{},arcadeTimer:null,arcadeInterval:null};
 const $=selector=>document.querySelector(selector);
 const list=$('#player-list');
 const unit=value=>state.scoring==='sips'?(value+' '+(value===1?'Sip':'Sips')):(value+' '+(value===1?'Punkt':'Punkte'));
@@ -56,7 +56,10 @@ let saved={};try{saved=JSON.parse(localStorage.getItem('rundenrausch-setup')||'{
 if(saved.mood){const option=document.querySelector('input[name="mood"][value="'+saved.mood+'"]');if(option)option.checked=true}
 if(saved.max)$('#game-length').value=String(saved.max);
 if(saved.scoring)$('#scoring').value=saved.scoring;
+if(saved.mode){const modeOption=document.querySelector('input[name="mode"][value="'+saved.mode+'"]');if(modeOption)modeOption.checked=true}
 $('#add-player').onclick=()=>addPlayer();
+function updateSetupMode(){const arcade=document.querySelector('input[name="mode"]:checked').value==='arcade';$('#mood-fieldset').classList.toggle('hidden',arcade);$('#custom-cards').classList.toggle('hidden',arcade)}
+document.querySelectorAll('input[name="mode"]').forEach(input=>input.onchange=updateSetupMode);updateSetupMode();
 
 function buildJourney(custom){
   const customCards=custom.map(text=>({type:'custom',level:2,moods:[state.mood],text:text,hint:'Eure Runde, eure Regeln.'}));
@@ -75,12 +78,12 @@ $('#setup-form').onsubmit=event=>{
   event.preventDefault();state.players=[...list.querySelectorAll('input')].map(input=>input.value.trim()).filter(Boolean);
   if(state.players.length<2){$('#setup-error').textContent='Trag mindestens zwei Namen ein.';return}
   if(new Set(state.players.map(name=>name.toLowerCase())).size!==state.players.length){$('#setup-error').textContent='Jeder Name darf nur einmal vorkommen.';return}
-  state.mood=new FormData(event.currentTarget).get('mood');state.max=Number($('#game-length').value);state.scoring=$('#scoring').value;state.scores={};
+  state.mode=new FormData(event.currentTarget).get('mode');state.mood=new FormData(event.currentTarget).get('mood');state.max=Number($('#game-length').value);state.scoring=$('#scoring').value;state.scores={};
   state.players.forEach(player=>state.scores[player]=0);
   const custom=$('#custom-input').value.split('\n').map(line=>line.trim()).filter(Boolean).slice(0,10);
   state.journey=buildJourney(custom);state.index=0;state.activeRule='';
-  localStorage.setItem('rundenrausch-setup',JSON.stringify({players:state.players,mood:state.mood,max:state.max,scoring:state.scoring}));
-  switchScreen('game');showCard();
+  localStorage.setItem('rundenrausch-setup',JSON.stringify({players:state.players,mode:state.mode,mood:state.mood,max:state.max,scoring:state.scoring}));
+  if(state.mode==='arcade')startArcade();else{switchScreen('game');showCard()}
 };
 
 function switchScreen(id){document.querySelectorAll('.screen').forEach(screen=>screen.classList.toggle('active',screen.id===id));window.scrollTo(0,0)}
@@ -138,5 +141,85 @@ function showFinish(){
   $('#awards').innerHTML='<div class="award-card"><span>🛡️</span><small>STANDFEST</small><strong></strong></div><div class="award-card"><span>🧲</span><small>RUNDENMAGNET</small><strong></strong></div>';
   const names=$('#awards').querySelectorAll('strong');names[0].textContent=lowest;names[1].textContent=highest;makeStats($('#final-stats'));switchScreen('finish');buzz([50,60,50,60,120]);
 }
-$('#rematch').onclick=()=>{state.players.forEach(player=>state.scores[player]=0);state.index=0;state.activeRule='';state.journey=buildJourney([]);switchScreen('game');showCard()};
+const arcadeGames=[
+  {kind:'reaction',title:'Reaktionsduell',instruction:'Tippt erst, wenn beide Flächen grün werden.'},
+  {kind:'taps',title:'Tap-Race',instruction:'Wer schafft in fünf Sekunden mehr Treffer?'},
+  {kind:'bomb',title:'Bombenhandy',instruction:'Weitergeben, bevor die Bombe hochgeht.'},
+  {kind:'fingers',title:'Finger-Roulette',instruction:'Alle legen einen Finger auf das Feld.'},
+  {kind:'time',title:'Zeitgefühl',instruction:'Stoppe die verdeckte Zeit so genau wie möglich.'}
+];
+
+function clearArcadeTimers(){clearTimeout(state.arcadeTimer);clearInterval(state.arcadeInterval);state.arcadeTimer=null;state.arcadeInterval=null}
+function createArcadeOrder(){
+  const count={18:6,30:10,45:15}[state.max]||10;state.arcadeMax=count;const order=[];
+  while(order.length<count){const cycle=[...arcadeGames].sort(()=>Math.random()-.5);cycle.forEach(game=>{if(order.length<count)order.push(game)})}
+  return order;
+}
+function startArcade(){
+  clearArcadeTimers();state.arcadeIndex=0;state.arcadeWins={};state.players.forEach(player=>state.arcadeWins[player]=0);state.arcadeOrder=createArcadeOrder();switchScreen('arcade');showArcadeGame();
+}
+function arcadePair(){return[state.players[state.arcadeIndex%state.players.length],state.players[(state.arcadeIndex+1)%state.players.length]]}
+function renderArcadeScore(){
+  const holder=$('#arcade-score');holder.replaceChildren();state.players.forEach(player=>{const pill=document.createElement('div');pill.className='score-pill';pill.append(document.createTextNode(player));const score=document.createElement('b');score.textContent=state.arcadeWins[player];pill.append(score);holder.append(pill)});
+}
+function arcadeStart(label,action){
+  const button=document.createElement('button');button.className='arcade-start';button.textContent=label;button.onclick=action;$('#arcade-stage').append(button);
+}
+function completeArcade(message,winner){
+  clearArcadeTimers();if(winner)state.arcadeWins[winner]++;renderArcadeScore();$('#arcade-result').textContent=message;$('#arcade-result').classList.remove('hidden');$('#arcade-next').classList.remove('hidden');buzz(winner?[70,50,110]:[120]);
+}
+function showArcadeGame(){
+  clearArcadeTimers();const game=state.arcadeOrder[state.arcadeIndex],stage=$('#arcade-stage');stage.replaceChildren();$('#arcade-result').classList.add('hidden');$('#arcade-next').classList.add('hidden');
+  $('#arcade-round').textContent='SPIEL '+(state.arcadeIndex+1)+' / '+state.arcadeMax;$('#arcade-progress').style.width=((state.arcadeIndex+1)/state.arcadeMax*100)+'%';$('#arcade-title').textContent=game.title;$('#arcade-instruction').textContent=game.instruction;renderArcadeScore();
+  if(game.kind==='reaction')renderReaction(stage);if(game.kind==='taps')renderTapRace(stage);if(game.kind==='bomb')renderBomb(stage);if(game.kind==='fingers')renderFingers(stage);if(game.kind==='time')renderTimeGame(stage);
+}
+
+function renderReaction(stage){
+  const pair=arcadePair();arcadeStart('DUELL STARTEN',()=>{
+    stage.replaceChildren();const grid=document.createElement('div');grid.className='duel-grid';let live=false,done=false;
+    pair.forEach((player,index)=>{const pad=document.createElement('button');pad.className='duel-pad';pad.textContent=player;pad.onclick=()=>{if(done)return;done=true;const winner=live?player:pair[1-index];const loser=live?pair[1-index]:player;grid.querySelectorAll('button').forEach(button=>button.disabled=true);pad.classList.add(live?'go':'loser');completeArcade((live?'Blitzschnell: ':'Frühstart von ')+player+' · '+winner+' gewinnt!',winner)};grid.append(pad)});
+    stage.append(grid);state.arcadeTimer=setTimeout(()=>{if(done)return;live=true;grid.querySelectorAll('button').forEach(button=>{button.classList.add('go');button.textContent='JETZT!' });buzz([30,30,30])},1400+Math.random()*2200);
+  });
+}
+
+function renderTapRace(stage){
+  const pair=arcadePair();arcadeStart('5 SEKUNDEN STARTEN',()=>{
+    stage.replaceChildren();const grid=document.createElement('div');grid.className='duel-grid',counts=[0,0],pads=[];
+    pair.forEach((player,index)=>{const pad=document.createElement('button');pad.className='duel-pad';const name=document.createElement('span');name.textContent=player;const count=document.createElement('b');count.className='tap-count';count.textContent='0';pad.append(name,count);pad.onclick=()=>{counts[index]++;count.textContent=String(counts[index])};pads.push(pad);grid.append(pad)});stage.append(grid);
+    let remaining=5;state.arcadeInterval=setInterval(()=>{remaining-=.1;$('#arcade-instruction').textContent=remaining.toFixed(1)+' Sekunden';if(remaining<=0){clearArcadeTimers();pads.forEach(pad=>pad.disabled=true);const winner=counts[0]===counts[1]?null:pair[counts[0]>counts[1]?0:1];completeArcade(winner?winner+' gewinnt '+Math.max(...counts)+' zu '+Math.min(...counts)+'!':'Unentschieden – beide bekommen Ruhm.',winner)}},100);
+  });
+}
+
+function renderBomb(stage){
+  arcadeStart('BOMBE ZÜNDEN',()=>{
+    stage.replaceChildren();let holder=state.arcadeIndex%state.players.length,done=false;const bomb=document.createElement('div');bomb.className='bomb';bomb.textContent='💣';const name=document.createElement('div');name.className='holder';name.textContent=state.players[holder];const pass=document.createElement('button');pass.className='pass-button';pass.textContent='WEITERGEBEN';pass.onclick=()=>{if(done)return;holder=(holder+1)%state.players.length;name.textContent=state.players[holder];buzz(18)};stage.append(bomb,name,pass);
+    state.arcadeTimer=setTimeout(()=>{done=true;pass.disabled=true;bomb.textContent='💥';completeArcade('Boom! '+state.players[holder]+' wurde erwischt.',null)},6500+Math.random()*6000);
+  });
+}
+
+function renderFingers(stage){
+  const zone=document.createElement('div');zone.className='finger-zone';const note=document.createElement('div');note.className='finger-note';note.textContent='Mindestens zwei Finger gleichzeitig auflegen und halten.';zone.append(note);stage.append(zone);
+  const fingers=new Map();let choosing=false,finished=false;
+  const moveDot=event=>{const rect=zone.getBoundingClientRect(),dot=fingers.get(event.pointerId);if(dot){dot.style.left=(event.clientX-rect.left)+'px';dot.style.top=(event.clientY-rect.top)+'px'}};
+  zone.onpointerdown=event=>{if(finished||fingers.has(event.pointerId))return;event.preventDefault();zone.setPointerCapture(event.pointerId);const dot=document.createElement('i');dot.className='finger-dot';fingers.set(event.pointerId,dot);zone.append(dot);moveDot(event);note.textContent=fingers.size+' Finger erkannt';if(fingers.size>=2&&!choosing){choosing=true;note.textContent='Nicht loslassen …';state.arcadeTimer=setTimeout(()=>{const ids=[...fingers.keys()];if(ids.length<2){choosing=false;return}finished=true;const chosen=fingers.get(ids[Math.floor(Math.random()*ids.length)]);chosen.classList.add('chosen');note.textContent='Dieser Finger wurde erwischt!';setTimeout(()=>completeArcade('Der ausgewählte Finger verliert die Runde.',null),900)},1900)}};
+  zone.onpointermove=moveDot;zone.onpointerup=event=>{if(finished)return;const dot=fingers.get(event.pointerId);if(dot)dot.remove();fingers.delete(event.pointerId);if(fingers.size<2&&choosing){clearTimeout(state.arcadeTimer);choosing=false;note.textContent='Noch einmal: Finger auflegen und halten.'}};
+  zone.onpointercancel=zone.onpointerup;
+}
+
+function renderTimeGame(stage){
+  const player=state.players[state.arcadeIndex%state.players.length],target=[5,7,10][Math.floor(Math.random()*3)];$('#arcade-instruction').textContent=player+': Stoppe bei genau '+target+' Sekunden.';
+  const display=document.createElement('div');display.className='time-stop';display.textContent='0.00';const button=document.createElement('button');button.className='pass-button';button.textContent='START';
+  let started=0;button.onclick=()=>{if(!started){started=performance.now();button.textContent='STOPP';state.arcadeInterval=setInterval(()=>{const elapsed=(performance.now()-started)/1000;display.textContent=elapsed.toFixed(2);if(elapsed>.7)display.classList.add('hidden-time')},35)}else{const elapsed=(performance.now()-started)/1000,diff=Math.abs(elapsed-target);clearArcadeTimers();display.classList.remove('hidden-time');display.textContent=elapsed.toFixed(2)+' s';button.disabled=true;completeArcade(diff<.35?'Stark! Nur '+diff.toFixed(2)+' Sekunden daneben.':diff.toFixed(2)+' Sekunden daneben – knapp ist anders.',diff<.35?player:null)}};stage.append(display,button);
+}
+
+$('#arcade-next').onclick=()=>{state.arcadeIndex++;if(state.arcadeIndex>=state.arcadeMax)showArcadeFinish();else showArcadeGame()};
+$('#arcade-quit').onclick=()=>{if(confirm('Arcade wirklich beenden?')){clearArcadeTimers();switchScreen('setup')}};
+function makeArcadeStats(target){
+  target.replaceChildren();[...state.players].sort((a,b)=>state.arcadeWins[b]-state.arcadeWins[a]).forEach(player=>{const row=document.createElement('div');row.className='stat-row';const name=document.createElement('span');name.textContent=player;const score=document.createElement('span');score.textContent=state.arcadeWins[player]+' '+(state.arcadeWins[player]===1?'Sieg':'Siege');row.append(name,score);target.append(row)});
+}
+function showArcadeFinish(){
+  const ordered=[...state.players].sort((a,b)=>state.arcadeWins[b]-state.arcadeWins[a]),champion=ordered[0],underdog=ordered[ordered.length-1];$('#awards').innerHTML='<div class="award-card"><span>🏆</span><small>ARCADE-CHAMPION</small><strong></strong></div><div class="award-card"><span>🫠</span><small>PECHVOGEL</small><strong></strong></div>';const names=$('#awards').querySelectorAll('strong');names[0].textContent=champion;names[1].textContent=underdog;makeArcadeStats($('#final-stats'));switchScreen('finish');buzz([70,50,70,50,160]);
+}
+
+$('#rematch').onclick=()=>{if(state.mode==='arcade'){startArcade();return}state.players.forEach(player=>state.scores[player]=0);state.index=0;state.activeRule='';state.journey=buildJourney([]);switchScreen('game');showCard()};
 $('#new-group').onclick=()=>{state.index=0;switchScreen('setup')};

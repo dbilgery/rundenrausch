@@ -20,7 +20,12 @@
       <form id="setup-form">
         <div id="player-list" class="player-list" aria-label="Spieler"></div>
         <button class="add-player" id="add-player" type="button"><span>＋</span> Person hinzufügen</button>
-        <fieldset class="choice-grid mood-picker">
+        <fieldset class="choice-grid mode-picker">
+          <legend>Was wollt ihr spielen?</legend>
+          <label><input type="radio" name="mode" value="classic" checked><span><b>Kartenrausch</b><small>Fragen, Regeln & Missionen</small></span></label>
+          <label><input type="radio" name="mode" value="arcade"><span><b>Rausch Arcade</b><small>Reaktion, Tempo & Glück</small></span></label>
+        </fieldset>
+        <fieldset id="mood-fieldset" class="choice-grid mood-picker">
           <legend>Wie soll der Abend werden?</legend>
           <label><input type="radio" name="mood" value="locker" checked><span><b>Locker</b><small>Lachen & kennenlernen</small></span></label>
           <label><input type="radio" name="mood" value="frech"><span><b>Frech</b><small>Persönlich & direkt</small></span></label>
@@ -30,7 +35,7 @@
           <label><span>Spielzeit</span><select id="game-length"><option value="18">Kurz · ca. 20 Min.</option><option value="30" selected>Normal · ca. 40 Min.</option><option value="45">Lang · ca. 60 Min.</option></select></label>
           <label><span>Wertung</span><select id="scoring"><option value="sips">Sips</option><option value="points">Nur Punkte</option></select></label>
         </div>
-        <details class="custom-cards">
+        <details id="custom-cards" class="custom-cards">
           <summary><span>Eigene Karten</span><small>Insider machen's besser</small></summary>
           <label for="custom-input">Eine Aufgabe pro Zeile</label>
           <textarea id="custom-input" rows="4" maxlength="600" placeholder="Alex erzählt seine peinlichste Urlaubsgeschichte.&#10;Alle mit weißen Schuhen bekommen einen Punkt."></textarea>
@@ -38,6 +43,22 @@
         <button class="primary" type="submit">Rausch starten <span>→</span></button>
         <p id="setup-error" class="error" role="alert"></p>
       </form>
+    </section>
+    <section id="arcade" class="screen arcade-screen" aria-live="polite">
+      <header class="game-header">
+        <button id="arcade-quit" class="icon-button" aria-label="Arcade beenden">×</button>
+        <div class="round"><span id="arcade-round">SPIEL 1 / 10</span><i><em id="arcade-progress"></em></i></div>
+        <div class="arcade-lives">● ● ●</div>
+      </header>
+      <div class="arcade-score" id="arcade-score"></div>
+      <div class="arcade-heading">
+        <p class="eyebrow">RAUSCH ARCADE</p>
+        <h2 id="arcade-title">Reaktionsduell</h2>
+        <p id="arcade-instruction">Tippt erst, wenn das Signal erscheint.</p>
+      </div>
+      <section id="arcade-stage" class="arcade-stage"></section>
+      <div id="arcade-result" class="arcade-result hidden"></div>
+      <button id="arcade-next" class="primary hidden">Nächstes Spiel <span>→</span></button>
     </section>
     <section id="game" class="screen game-screen" aria-live="polite">
       <header class="game-header">
